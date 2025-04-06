@@ -130,15 +130,79 @@ with abas[2]: # probabilidade
         Este visual ainda não pode ser exibido porque não temos dados do Brasileirão. Dessa forma, a divisão por zero tende ao infinito, resultando em um erro no momento em que rodamos o código. 
         """)
     
+        # Extraindo os times e estatísticas
+    teams = tabela_brasileirao['Time'].tolist()
+    gols_marcados = {row['Time']: row['Gols Pró'] for _, row in tabela_brasileirao.iterrows()}
+    gols_sofridos = {row['Time']: row['Gols Contra'] for _, row in tabela_brasileirao.iterrows()}
+    qtd_partidas = sum(tabela_brasileirao['Jogos'])
+
+    # Função para calcular o SPI baseado nas forças ofensivas e defensivas
+    def calculate_spi(gols_marcados, gols_sofridos):
+        spis = {}
+        avg_gols_marcados = sum(gols_marcados.values()) / qtd_partidas
+        avg_gols_sofridos = sum(gols_sofridos.values()) / qtd_partidas
+
+        for team in teams:
+            gm = gols_marcados.get(team, 0)
+            gs = gols_sofridos.get(team, 0)
+
+            if gm == 0 or gs == 0:
+                print(f"Aviso: o SPI de '{team}' ainda não pode ser calculado devido ao saldo de gols (Gols Pró: {gm}, Gols Contra: {gs}).")
+                spis[team] = None
+            else:
+                ataque = gm / avg_gols_marcados
+                defesa = avg_gols_sofridos / gs
+                spis[team] = ataque * defesa * 1.2
+        return spis
+    
+
+
+    spi = calculate_spi(gols_marcados, gols_sofridos)
+
+    # Função para simular partidas
+    def simulate_match(team_a_spi, team_b_spi, simulations=10000):
+        results = np.zeros((6, 6))
+
+        for _ in range(simulations):
+            expected_goals_a = (team_a_spi / (team_a_spi + team_b_spi)) * 2.5
+            expected_goals_b = (team_b_spi / (team_a_spi + team_b_spi)) * 2.5
+            
+            goals_a = np.random.poisson(expected_goals_a)
+            goals_b = np.random.poisson(expected_goals_b)
+
+            if goals_a < 6 and goals_b < 6:
+                results[goals_a, goals_b] += 1
+
+        probabilities = results / simulations
+        return probabilities
+
+    # Função para gerar o heatmap
+    def plot_goal_probabilities_heatmap(team_a, team_b):
+        probabilities_matrix = simulate_match(spi[team_a], spi[team_b])
+
+        fig, ax = plt.subplots(figsize=(10, 8))
+
+        sns.heatmap(probabilities_matrix, annot=True, fmt=".2%", cmap="YlOrRd",
+                    xticklabels=range(6), yticklabels=range(6),
+                    cbar_kws={'label': 'Probabilidade'}, ax=ax)
+
+        plt.title(f"Probabilidades de Gols: {team_a} x {team_b}")
+        plt.xlabel(f"Gols {team_b}")
+        plt.ylabel(f"Gols {team_a}")
+        
+        st.pyplot(fig)
+
+
     # Interface no Streamlit
-    #st.title("Simulação de Jogos do Brasileirão")
-    #st.sidebar.header("Selecione os Times")
+    st.title("Simulação de Jogos do Brasileirão")
+    st.sidebar.header("Selecione os Times")
 
-    #time_a = st.sidebar.selectbox("Escolha o Time A", teams)
-    #time_b = st.sidebar.selectbox("Escolha o Time B", teams)
+    time_a = st.sidebar.selectbox("Escolha o Time A", teams)
+    time_b = st.sidebar.selectbox("Escolha o Time B", teams)
 
-    #if st.sidebar.button("Simular Jogo"):
-    #    plot_goal_probabilities_heatmap(time_a, time_b)
+    if st.sidebar.button("Simular Jogo"):
+        plot_goal_probabilities_heatmap(time_a, time_b)
+        
 with abas[3]: # historico
     with st.expander("Sobre o Conjunto de Dados"):
         st.write("""
